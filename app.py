@@ -126,4 +126,64 @@ with t_home:
                     
                     if is_logged:
                         if u_name in mems:
-                            if st.button("❌ 내 자리 빼기", key=f"
+                            if st.button("❌ 내 자리 빼기", key=f"out_{p_id}"):
+                                p["members"].remove(u_name)
+                                if not p["members"]: d_list.remove(p)
+                                save_json(PARTY_DB_FILE, parties_db); st.rerun()
+                        elif len(mems) < cap:
+                            if st.button("➕ 빈자리 참여", key=f"in_{p_id}", type="primary"):
+                                p["members"].append(u_name); save_json(PARTY_DB_FILE, parties_db); st.rerun()
+                        else:
+                            st.button("🔒 인원 마감", key=f"f_{p_id}", disabled=True)
+                    else:
+                        st.button("닉네임 입력 필요", key=f"d_{p_id}", disabled=True)
+            st.write("")
+    if not any_p: st.info("아직 개설된 파티가 없습니다.")
+
+# --- 파티 만들기 ---
+with t_manage:
+    if not is_logged:
+        st.warning("위쪽 닉네임 칸에 이름을 먼저 적어주세요!")
+    else:
+        st.subheader("📝 새로운 파티 등록")
+        with st.form("c_form"):
+            s_cat = st.selectbox("📌 카테고리", CATEGORIES)
+            
+            st.write("**⏰ 시간 설정** (빠른 선택 가능)")
+            q_times = ["오전 10시 ~ 오후 12시", "오후 8시 ~ 오후 10시", "오후 10시 ~ 오전 12시"]
+            s_quick = st.radio("빠른 시간 선택", ["직접 입력"] + q_times, horizontal=True)
+            
+            t1, t2, t3, t4 = st.columns(4)
+            s_am = t1.selectbox("시작", ["오전", "오후"], index=1)
+            s_hr = t2.selectbox("시", [f"{i}시" for i in range(1, 13)], index=7)
+            e_am = t3.selectbox("종료", ["오전", "오후"], index=1)
+            e_hr = t4.selectbox("시", [f"{i}시" for i in range(1, 13)], index=9)
+            
+            c1, c2 = st.columns(2)
+            m_cap = c1.slider("정원(명)", 2, 12, 4)
+            r_job = c2.multiselect("희망 직업 (비우면 무관)", JOB_LIST)
+            
+            if st.form_submit_button("🚀 파티 개설하기", use_container_width=True):
+                final_t = s_quick if s_quick != "직접 입력" else f"{s_am} {s_hr} ~ {e_am} {e_hr}"
+                if s_cat not in parties_db: parties_db[s_cat] = {}
+                if g_date not in parties_db[s_cat]: parties_db[s_cat][g_date] = []
+                parties_db[s_cat][g_date].append({"id": str(uuid.uuid4()), "time": final_t, "capacity": m_cap, "req_jobs": r_job, "members": [u_name]})
+                
+                # 에러 방지용 안전한 줄바꿈
+                def get_h(ts):
+                    try:
+                        start_str = ts.split("~")[0].strip()
+                        ampm, h_str = start_str.split(" ")
+                        hour = int(h_str.replace("시", ""))
+                        if ampm == "오후" and hour != 12: 
+                            hour += 12
+                        elif ampm == "오전" and hour == 12: 
+                            hour = 0
+                        return hour
+                    except: 
+                        return 0
+                        
+                parties_db[s_cat][g_date].sort(key=lambda x: get_h(x['time']))
+                save_json(PARTY_DB_FILE, parties_db)
+                st.success("개설 완료! '실시간 현황'에서 확인하세요.")
+                st.rerun()
