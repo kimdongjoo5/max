@@ -10,7 +10,13 @@ st_autorefresh(interval=10000, key="datarefresh")
 
 USER_DB_FILE = "users_db.json"
 PARTY_DB_FILE = "parties_db.json"
-CATEGORIES = ["일일숙제(600)", "일일숙제(청명파티)", "사냥파티", "4차팟", "3차팟", "퀘스트(용궁 등)", "어금니", "해골왕", "폭염왕"]
+
+# 카테고리 추가 적용 완료
+CATEGORIES = [
+    "일일숙제(600)", "일일숙제(청명파티)", "사냥파티", 
+    "4차팟", "3차팟", "퀘스트(용궁 등)", 
+    "어금니", "해골왕", "폭염왕"
+]
 JOB_LIST = ["전사", "도적", "주술사", "도사"]
 
 st.set_page_config(page_title="천국문파 예약 시스템", layout="wide")
@@ -25,15 +31,15 @@ st.markdown("""
     
     [data-testid="stVerticalBlockBorderWrapper"] { padding: 0.4rem !important; }
 
-    /* 🔥 핵심 마법: 버튼을 강제로 절반(50%) 크기로 만들어서 무조건 2열로 배치되게 함 */
-    div.stButton {
+    /* 🔥 핵심 마법: 버튼을 강제로 절반(50%) 크기로 만들어서 무조건 2열로 배치 */
+    div[data-testid="stVerticalBlockBorderWrapper"] div.stButton {
         display: inline-block !important;
         width: calc(50% - 6px) !important;
         margin: 3px !important;
         vertical-align: top !important;
     }
     
-    div.stButton > button {
+    div[data-testid="stVerticalBlockBorderWrapper"] div.stButton > button {
         width: 100% !important;
         padding: 4px 0px !important;
         border-radius: 6px !important;
@@ -56,19 +62,19 @@ st.markdown("""
 
 def load_json(f_path, default):
     if os.path.exists(f_path):
-        with open(f_path, "r", encoding="utf-8") as f: 
+        with open(f_path, "r", encoding="utf-8") as f:
             return json.load(f)
     return default
 
 def save_json(f_path, data):
-    with open(f_path, "w", encoding="utf-8") as f: 
+    with open(f_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 users_db = load_json(USER_DB_FILE, {})
 parties_db = load_json(PARTY_DB_FILE, {})
 
 def classify_time(time_str):
-    if "심야" in time_str: 
+    if "심야" in time_str:
         return "night"
     try:
         am_pm, hr_str = time_str.split("~")[0].strip().split(" ")
@@ -79,7 +85,7 @@ def classify_time(time_str):
         if 0 <= hr < 6: return "night"
         elif 6 <= hr < 12: return "am"
         else: return "pm"
-    except: 
+    except:
         return "pm"
 
 # ==========================================
@@ -92,7 +98,7 @@ for cat in list(parties_db.keys()):
         if d < today_str:
             del parties_db[cat][d]
             cleaned = True
-if cleaned: 
+if cleaned:
     save_json(PARTY_DB_FILE, parties_db)
 
 st.markdown('<div class="main-title">⚔️ 천국문파 파티 예약 시스템</div>', unsafe_allow_html=True)
@@ -118,9 +124,9 @@ st.markdown(links_html, unsafe_allow_html=True)
 # 👤 로그인 및 날짜 설정
 # ==========================================
 col_l, col_d = st.columns([2, 1])
-with col_l: 
+with col_l:
     u_name = st.text_input("🛡️ 닉네임 (입력해야 참여 가능)", placeholder="예: 지존전사")
-with col_d: 
+with col_d:
     g_date = str(st.date_input("📅 날짜", value=date.today()))
 
 is_logged = False
@@ -131,14 +137,14 @@ if u_name:
             users_db[u_name] = job
             save_json(USER_DB_FILE, users_db)
             st.rerun()
-    else: 
+    else:
         is_logged = True
 
 st.write("---")
 t_home, t_manage = st.tabs(["🏠 실시간 현황", "➕ 파티 만들기"])
 
 # ==========================================
-# 🃏 카드 렌더링 함수 (무조건 2열로 꽉 차게 렌더링)
+# 🃏 카드 렌더링 함수
 # ==========================================
 def render_party_card(p, d_list):
     p_id = p["id"]
@@ -151,43 +157,23 @@ def render_party_card(p, d_list):
         st.markdown(f'<div style="font-weight:900; font-size:0.85rem; display:flex; justify-content:space-between; margin-bottom:2px;"><span>⏰ {p["time"]}</span><span style="color:#e74c3c">{len(mems)}/{cap}</span></div>', unsafe_allow_html=True)
         st.markdown(f'<div style="font-size:0.7rem; color:#7f8c8d; margin-bottom:8px;">🎯 {req_jobs_str}</div>', unsafe_allow_html=True)
 
-        # 1. 참석자 버튼 출력
+        # 에러 방지: 리스트 생성을 안전하게 여러 줄로 분할
+        slots = []
         for m in mems:
-            if is_logged and m == u_name:
-                if st.button(f"❌ {m}", key=f"out_{p_id}_{m}"):
-                    p["members"].remove(u_name)
-                    if not p["members"]: 
-                        d_list.remove(p)
-                    save_json(PARTY_DB_FILE, parties_db)
-                    st.rerun()
-            else:
-                user_job = users_db.get(m, "?")
-                st.button(f"[{user_job}] {m}", key=f"d_{p_id}_{m}", disabled=True)
-
-        # 2. 빈자리 버튼 출력
+            slots.append({"t": "m", "v": m})
         for i in range(cap - len(mems)):
-            if is_logged and u_name not in mems:
-                if st.button("➕빈자리", key=f"in_{p_id}_{i}", type="primary"):
-                    p["members"].append(u_name)
-                    save_json(PARTY_DB_FILE, parties_db)
-                    st.rerun()
-            else:
-                st.button("빈자리", key=f"e_{p_id}_{i}", disabled=True)
-
-# ==========================================
-# 🏠 홈 현황판
-# ==========================================
-with t_home:
-    any_p = False
-    for cat in CATEGORIES:
-        d_list = parties_db.get(cat, {}).get(g_date, [])
-        if d_list:
-            any_p = True
-            
-            # 파스텔 블루 밝은 배경
-            st.markdown(f"""
-                <div style='background-color: #eaf2f8; color: #2980b9; font-size: 1.15rem; font-weight: 900; 
-                padding: 10px 15px; border-radius: 8px; margin-top: 20px; margin-bottom: 10px; 
-                box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #3498db;'>
-                📌 {cat}
-                </div>
+            slots.append({"t": "e", "v": i})
+        
+        for slot in slots:
+            if slot["t"] == "m":
+                m = slot["v"]
+                if is_logged and m == u_name:
+                    if st.button(f"❌ {m}", key=f"out_{p_id}_{m}"):
+                        p["members"].remove(u_name)
+                        if not p["members"]:
+                            d_list.remove(p)
+                        save_json(PARTY_DB_FILE, parties_db)
+                        st.rerun()
+                else:
+                    user_job = users_db.get(m, "?")
+                    st.button(f"[{user_job}] {m}", key=f"d_{p_id}_{m}", disabled=True)
