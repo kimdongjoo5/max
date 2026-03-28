@@ -16,7 +16,7 @@ JOB_LIST = ["전사", "도적", "주술사", "도사"]
 st.set_page_config(page_title="천국문파 예약 시스템", layout="wide")
 
 # ==========================================
-# 🎨 UI 스타일 (모바일 강제 2열 고정 마법!)
+# 🎨 UI 스타일 (🔥 어떤 기기든 강제 2열 고정 마법 🔥)
 # ==========================================
 st.markdown("""
 <style>
@@ -25,15 +25,8 @@ st.markdown("""
     
     [data-testid="stVerticalBlockBorderWrapper"] { padding: 0.4rem !important; }
 
-    /* 모바일/PC 상관없이 무조건 2열로 버튼 꽉 차게 고정 */
-    div[data-testid="stVerticalBlockBorderWrapper"] div.stButton {
-        display: inline-block !important;
-        width: calc(50% - 6px) !important;
-        margin: 3px !important;
-        vertical-align: top !important;
-    }
-    
-    div[data-testid="stVerticalBlockBorderWrapper"] div.stButton > button {
+    /* 버튼 스타일 (가로 100% 꽉 채우기) */
+    div.stButton > button {
         width: 100% !important;
         padding: 4px 0px !important;
         border-radius: 6px !important;
@@ -50,6 +43,19 @@ st.markdown("""
     div.stButton > button[kind="primary"]:hover { border-color: #3498db !important; color: #3498db !important; background-color: #e8f4fd !important; }
     
     div.row-widget.stRadio > div { flex-wrap: wrap; gap: 5px; }
+
+    /* 🔥 스트림릿의 모바일 1열 강제 변환을 부수고 무조건 2열로 고정하는 마법 🔥 */
+    @media (max-width: 768px) {
+        div[data-testid="stHorizontalBlock"] {
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+        }
+        div[data-testid="column"] {
+            width: calc(50% - 0.5rem) !important;
+            flex: 1 1 calc(50% - 0.5rem) !important;
+            min-width: calc(50% - 0.5rem) !important;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -65,7 +71,7 @@ def save_json(f_path, data):
 
 users_db = load_json(USER_DB_FILE, {})
 parties_db = load_json(PARTY_DB_FILE, {})
-if not isinstance(parties_db, dict): parties_db = {} # 데이터 꼬임 방어 1단계
+if not isinstance(parties_db, dict): parties_db = {} 
 
 def classify_time(time_str):
     if not isinstance(time_str, str): return "pm"
@@ -75,19 +81,18 @@ def classify_time(time_str):
         hr = int(hr_str.replace("시", ""))
         if am_pm == "오후" and hr != 12: hr += 12
         elif am_pm == "오전" and hr == 12: hr = 0
-        
         if 0 <= hr < 6: return "night"
         elif 6 <= hr < 12: return "am"
         else: return "pm"
     except: return "pm"
 
 # ==========================================
-# 🧹 과거 데이터 자동 삭제 (에러 방어율 100%)
+# 🧹 과거 데이터 자동 삭제 (24시간 폭파)
 # ==========================================
 today_str = str(date.today())
 cleaned = False
 for cat in list(parties_db.keys()):
-    if isinstance(parties_db[cat], dict): # 데이터 꼬임 방어 2단계
+    if isinstance(parties_db[cat], dict):
         for d in list(parties_db[cat].keys()):
             if d < today_str:
                 del parties_db[cat][d]
@@ -132,7 +137,7 @@ st.write("---")
 t_home, t_manage = st.tabs(["🏠 실시간 현황", "➕ 파티 만들기"])
 
 # ==========================================
-# 🃏 카드 렌더링 함수
+# 🃏 카드 렌더링 함수 (완벽 2열 적용)
 # ==========================================
 def render_party_card(p, d_list):
     p_id = p.get("id", str(uuid.uuid4()))
@@ -145,27 +150,35 @@ def render_party_card(p, d_list):
         st.markdown(f'<div style="font-weight:900; font-size:0.85rem; display:flex; justify-content:space-between; margin-bottom:2px;"><span>⏰ {p_time}</span><span style="color:#e74c3c">{len(mems)}/{cap}</span></div>', unsafe_allow_html=True)
         st.markdown(f'<div style="font-size:0.7rem; color:#7f8c8d; margin-bottom:8px;">🎯 {req_jobs_str}</div>', unsafe_allow_html=True)
 
-        slots = [{"t": "m", "v": m} for m in mems] + [{"t": "e", "v": i} for i in range(max(0, cap - len(mems)))]
+        slots = []
+        for m in mems:
+            slots.append({"t": "m", "v": m})
+        for i in range(max(0, cap - len(mems))):
+            slots.append({"t": "e", "v": i})
         
-        for slot in slots:
-            if slot["t"] == "m":
-                m = slot["v"]
-                if is_logged and m == u_name:
-                    if st.button(f"❌ {m}", key=f"out_{p_id}_{m}"):
-                        p["members"].remove(u_name)
-                        if not p["members"] and p in d_list: d_list.remove(p)
-                        save_json(PARTY_DB_FILE, parties_db); st.rerun()
+        # 💡 스트림릿 고유 기능으로 버튼들을 2열로 확실하게 나눔!
+        c1, c2 = st.columns(2)
+        for s_idx, slot in enumerate(slots):
+            col = c1 if s_idx % 2 == 0 else c2
+            with col:
+                if slot["t"] == "m":
+                    m = slot["v"]
+                    if is_logged and m == u_name:
+                        if st.button(f"❌ {m}", key=f"out_{p_id}_{m}", use_container_width=True):
+                            p["members"].remove(u_name)
+                            if not p["members"] and p in d_list: d_list.remove(p)
+                            save_json(PARTY_DB_FILE, parties_db); st.rerun()
+                    else:
+                        user_job = users_db.get(m, "?")
+                        st.button(f"[{user_job}] {m}", key=f"d_{p_id}_{m}", disabled=True, use_container_width=True)
                 else:
-                    user_job = users_db.get(m, "?")
-                    st.button(f"[{user_job}] {m}", key=f"d_{p_id}_{m}", disabled=True)
-            else:
-                e_idx = slot["v"]
-                if is_logged and u_name not in mems:
-                    if st.button("➕빈자리", key=f"in_{p_id}_{e_idx}", type="primary"):
-                        p["members"].append(u_name)
-                        save_json(PARTY_DB_FILE, parties_db); st.rerun()
-                else:
-                    st.button("빈자리", key=f"e_{p_id}_{e_idx}", disabled=True)
+                    e_idx = slot["v"]
+                    if is_logged and u_name not in mems:
+                        if st.button("➕빈자리", key=f"in_{p_id}_{e_idx}", type="primary", use_container_width=True):
+                            p["members"].append(u_name)
+                            save_json(PARTY_DB_FILE, parties_db); st.rerun()
+                    else:
+                        st.button("빈자리", key=f"e_{p_id}_{e_idx}", disabled=True, use_container_width=True)
 
 # ==========================================
 # 🏠 홈 현황판
@@ -173,7 +186,6 @@ def render_party_card(p, d_list):
 with t_home:
     any_p = False
     for cat in CATEGORIES:
-        # 데이터 꼬임 방어 3단계
         cat_data = parties_db.get(cat, {})
         if not isinstance(cat_data, dict): cat_data = {}
         d_list = cat_data.get(g_date, [])
@@ -193,6 +205,7 @@ with t_home:
             pm_list = [p for p in d_list if classify_time(p.get("time", "")) == "pm"]
             night_list = [p for p in d_list if classify_time(p.get("time", "")) == "night"]
             
+            # 파티 카드 자체도 2열로 배치
             def render_grid(p_list):
                 cols = st.columns(2) 
                 for idx, p in enumerate(p_list):
@@ -221,7 +234,6 @@ with t_manage:
         st.warning("위쪽 입력칸에 닉네임을 먼저 적어주세요!")
     else:
         st.subheader("📝 새로운 파티 등록")
-        
         s_cat = st.selectbox("📌 카테고리", CATEGORIES)
         
         time_zone = st.radio(
@@ -255,8 +267,7 @@ with t_manage:
         r_job = c2.multiselect("희망 직업 (비우면 무관)", JOB_LIST)
         
         if st.button("🚀 파티 개설하기", use_container_width=True, type="primary"):
-            if is_custom:
-                final_t = f"{s_am_m} {s_hr_m} ~ {e_am_m} {e_hr_m}"
+            if is_custom: final_t = f"{s_am_m} {s_hr_m} ~ {e_am_m} {e_hr_m}"
             
             if s_cat not in parties_db: parties_db[s_cat] = {}
             if g_date not in parties_db[s_cat]: parties_db[s_cat][g_date] = []
