@@ -16,7 +16,7 @@ JOB_LIST = ["전사", "도적", "주술사", "도사"]
 st.set_page_config(page_title="천국문파 예약 시스템", layout="wide")
 
 # ==========================================
-# 🎨 UI 스타일 (🔥 어떤 기기든 강제 2열 고정 마법 🔥)
+# 🎨 UI 스타일 (🔥 스트림릿 1열 고집 박살! 절대 2열 강제 고정 🔥)
 # ==========================================
 st.markdown("""
 <style>
@@ -25,7 +25,20 @@ st.markdown("""
     
     [data-testid="stVerticalBlockBorderWrapper"] { padding: 0.4rem !important; }
 
+    /* 🔥 궁극의 마법: PC든 모바일이든 무조건 화면을 50%씩 2열로 강제 분할 🔥 */
+    div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+    }
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        width: calc(50% - 0.5rem) !important;
+        flex: 1 1 calc(50% - 0.5rem) !important;
+        min-width: calc(50% - 0.5rem) !important;
+    }
+
     /* 버튼 스타일 (가로 100% 꽉 채우기) */
+    div.stButton { margin: 2px 0px !important; width: 100% !important; }
     div.stButton > button {
         width: 100% !important;
         padding: 4px 0px !important;
@@ -43,19 +56,6 @@ st.markdown("""
     div.stButton > button[kind="primary"]:hover { border-color: #3498db !important; color: #3498db !important; background-color: #e8f4fd !important; }
     
     div.row-widget.stRadio > div { flex-wrap: wrap; gap: 5px; }
-
-    /* 🔥 스트림릿의 모바일 1열 강제 변환을 부수고 무조건 2열로 고정하는 마법 🔥 */
-    @media (max-width: 768px) {
-        div[data-testid="stHorizontalBlock"] {
-            flex-direction: row !important;
-            flex-wrap: wrap !important;
-        }
-        div[data-testid="column"] {
-            width: calc(50% - 0.5rem) !important;
-            flex: 1 1 calc(50% - 0.5rem) !important;
-            min-width: calc(50% - 0.5rem) !important;
-        }
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -137,7 +137,7 @@ st.write("---")
 t_home, t_manage = st.tabs(["🏠 실시간 현황", "➕ 파티 만들기"])
 
 # ==========================================
-# 🃏 카드 렌더링 함수 (완벽 2열 적용)
+# 🃏 카드 렌더링 함수
 # ==========================================
 def render_party_card(p, d_list):
     p_id = p.get("id", str(uuid.uuid4()))
@@ -156,7 +156,6 @@ def render_party_card(p, d_list):
         for i in range(max(0, cap - len(mems))):
             slots.append({"t": "e", "v": i})
         
-        # 💡 스트림릿 고유 기능으로 버튼들을 2열로 확실하게 나눔!
         c1, c2 = st.columns(2)
         for s_idx, slot in enumerate(slots):
             col = c1 if s_idx % 2 == 0 else c2
@@ -205,7 +204,6 @@ with t_home:
             pm_list = [p for p in d_list if classify_time(p.get("time", "")) == "pm"]
             night_list = [p for p in d_list if classify_time(p.get("time", "")) == "night"]
             
-            # 파티 카드 자체도 2열로 배치
             def render_grid(p_list):
                 cols = st.columns(2) 
                 for idx, p in enumerate(p_list):
