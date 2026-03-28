@@ -34,23 +34,23 @@ st.markdown("""
     .m-badge.me { background: #e74c3c; border: 1px solid #c0392b; }
     .e-slot { background: #f1f2f6; color: #a4b0be; border: 1px dashed #ccc; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; margin: 1px; display: inline-block; }
     
-    /* 버튼 얇고 작게 깎기 (가로 꽉 차는 것 방지) */
+    /* 버튼 얇고 작게 깎기 */
     div.stButton { margin-top: 5px !important; }
     div.stButton > button {
         padding: 2px 12px !important;
         font-size: 0.8rem !important;
         min-height: 28px !important;
         border-radius: 6px !important;
-        width: auto !important; /* 버튼이 글자 크기에 맞춰지도록 변경! */
+        width: auto !important; 
         display: inline-block !important;
     }
 
     /* 모바일 환경(화면이 좁을 때) 초소형 압축! */
     @media (max-width: 768px) {
         .main-title { font-size: 1.4rem !important; }
-        .link-icon { font-size: 0.9rem !important; }      /* 아이콘 크기 대폭 축소 */
-        .link-text { font-size: 0.55rem !important; }     /* 글씨 크기 대폭 축소 */
-        .link-box { padding: 2px !important; }            /* 박스 여백 축소 */
+        .link-icon { font-size: 0.9rem !important; }      
+        .link-text { font-size: 0.55rem !important; }     
+        .link-box { padding: 2px !important; }            
         .m-badge, .e-slot { font-size: 0.7rem !important; }
     }
 </style>
@@ -73,7 +73,7 @@ st.markdown('<div class="main-title">⚔️ 천국문파 파티 예약 시스템
 links = [
     {"n": "거래소", "url": "https://www.classicbaram.gg/trade", "i": "💰"},
     {"n": "체마계산", "url": "https://www.classicbaram.gg/calc/kingQuest/recommend", "i": "🧮"},
-    {"n": "클바갤러", "url": "https://enter.dcinside.com/mgallery/board/lists/?id=wcserver", "i": "💬"},
+    {"n": "클바갤러리", "url": "https://enter.dcinside.com/mgallery/board/lists/?id=wcserver", "i": "💬"},
     {"n": "의상실", "url": "https://barambook.com/render", "i": "👗"},
     {"n": "패치노트", "url": "https://www.classicbaram.gg/patchNotes", "i": "📜"}
 ]
@@ -124,53 +124,6 @@ with t_home:
                     html += '</div></div>'
                     st.markdown(html, unsafe_allow_html=True)
                     
-                    # 버튼이 화면을 다 채우지 않도록 width 설정 제거, 깔끔한 배치
                     if is_logged:
                         if u_name in mems:
-                            if st.button("❌ 내 자리 빼기", key=f"out_{p_id}"):
-                                p["members"].remove(u_name)
-                                if not p["members"]: d_list.remove(p)
-                                save_json(PARTY_DB_FILE, parties_db); st.rerun()
-                        elif len(mems) < cap:
-                            if st.button("➕ 빈자리 참여", key=f"in_{p_id}", type="primary"):
-                                p["members"].append(u_name); save_json(PARTY_DB_FILE, parties_db); st.rerun()
-                        else:
-                            st.button("🔒 인원 마감", key=f"f_{p_id}", disabled=True)
-                    else:
-                        st.button("닉네임 입력 필요", key=f"d_{p_id}", disabled=True)
-            st.write("")
-    if not any_p: st.info("아직 개설된 파티가 없습니다.")
-
-# --- 파티 만들기 ---
-with t_manage:
-    if not is_logged:
-        st.warning("위쪽 닉네임 칸에 이름을 먼저 적어주세요!")
-    else:
-        st.subheader("📝 새로운 파티 등록")
-        with st.form("c_form"):
-            s_cat = st.selectbox("📌 카테고리", CATEGORIES)
-            
-            st.write("**⏰ 시간 설정** (빠른 선택 가능)")
-            q_times = ["오전 10시 ~ 오후 12시", "오후 8시 ~ 오후 10시", "오후 10시 ~ 오전 12시"]
-            s_quick = st.radio("빠른 시간 선택", ["직접 입력"] + q_times, horizontal=True)
-            
-            t1, t2, t3, t4 = st.columns(4)
-            s_am = t1.selectbox("시작", ["오전", "오후"], index=1)
-            s_hr = t2.selectbox("시", [f"{i}시" for i in range(1, 13)], index=7)
-            e_am = t3.selectbox("종료", ["오전", "오후"], index=1)
-            e_hr = t4.selectbox("시", [f"{i}시" for i in range(1, 13)], index=9)
-            
-            c1, c2 = st.columns(2)
-            m_cap = c1.slider("정원(명)", 2, 12, 4)
-            r_job = c2.multiselect("희망 직업 (비우면 무관)", JOB_LIST)
-            
-            if st.form_submit_button("🚀 파티 개설하기", use_container_width=True):
-                final_t = s_quick if s_quick != "직접 입력" else f"{s_am} {s_hr} ~ {e_am} {e_hr}"
-                if s_cat not in parties_db: parties_db[s_cat] = {}
-                if g_date not in parties_db[s_cat]: parties_db[s_cat][g_date] = []
-                parties_db[s_cat][g_date].append({"id": str(uuid.uuid4()), "time": final_t, "capacity": m_cap, "req_jobs": r_job, "members": [u_name]})
-                
-                def get_h(ts):
-                    try:
-                        a, h = ts.split("~")[0].strip().split(" ")
-                        hr = int(h
+                            if st.button("❌ 내 자리 빼기", key=f"
