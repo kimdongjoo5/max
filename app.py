@@ -137,8 +137,28 @@ st.write("---")
 t_home, t_manage = st.tabs(["🏠 실시간 현황", "➕ 파티 만들기"])
 
 # ==========================================
-# 🃏 카드 렌더링 함수
+# 🃏 카드 및 슬롯 렌더링 (확실한 2열 분할)
 # ==========================================
+def render_slot(slot, p, p_id, d_list):
+    if slot["t"] == "m":
+        m = slot["v"]
+        if is_logged and m == u_name:
+            if st.button(f"❌ {m}", key=f"out_{p_id}_{m}", use_container_width=True):
+                p["members"].remove(u_name)
+                if not p["members"] and p in d_list: d_list.remove(p)
+                save_json(PARTY_DB_FILE, parties_db); st.rerun()
+        else:
+            user_job = users_db.get(m, "?")
+            st.button(f"[{user_job}] {m}", key=f"d_{p_id}_{m}", disabled=True, use_container_width=True)
+    else:
+        e_idx = slot["v"]
+        if is_logged and u_name not in p["members"]:
+            if st.button("➕빈자리", key=f"in_{p_id}_{e_idx}", type="primary", use_container_width=True):
+                p["members"].append(u_name)
+                save_json(PARTY_DB_FILE, parties_db); st.rerun()
+        else:
+            st.button("빈자리", key=f"e_{p_id}_{e_idx}", disabled=True, use_container_width=True)
+
 def render_party_card(p, d_list):
     p_id = p.get("id", str(uuid.uuid4()))
     cap = p.get("capacity", 4)
@@ -150,34 +170,16 @@ def render_party_card(p, d_list):
         st.markdown(f'<div style="font-weight:900; font-size:0.85rem; display:flex; justify-content:space-between; margin-bottom:2px;"><span>⏰ {p_time}</span><span style="color:#e74c3c">{len(mems)}/{cap}</span></div>', unsafe_allow_html=True)
         st.markdown(f'<div style="font-size:0.7rem; color:#7f8c8d; margin-bottom:8px;">🎯 {req_jobs_str}</div>', unsafe_allow_html=True)
 
-        slots = []
-        for m in mems:
-            slots.append({"t": "m", "v": m})
-        for i in range(max(0, cap - len(mems))):
-            slots.append({"t": "e", "v": i})
+        slots = [{"t": "m", "v": m} for m in mems] + [{"t": "e", "v": i} for i in range(max(0, cap - len(mems)))]
         
-        c1, c2 = st.columns(2)
-        for s_idx, slot in enumerate(slots):
-            col = c1 if s_idx % 2 == 0 else c2
-            with col:
-                if slot["t"] == "m":
-                    m = slot["v"]
-                    if is_logged and m == u_name:
-                        if st.button(f"❌ {m}", key=f"out_{p_id}_{m}", use_container_width=True):
-                            p["members"].remove(u_name)
-                            if not p["members"] and p in d_list: d_list.remove(p)
-                            save_json(PARTY_DB_FILE, parties_db); st.rerun()
-                    else:
-                        user_job = users_db.get(m, "?")
-                        st.button(f"[{user_job}] {m}", key=f"d_{p_id}_{m}", disabled=True, use_container_width=True)
-                else:
-                    e_idx = slot["v"]
-                    if is_logged and u_name not in mems:
-                        if st.button("➕빈자리", key=f"in_{p_id}_{e_idx}", type="primary", use_container_width=True):
-                            p["members"].append(u_name)
-                            save_json(PARTY_DB_FILE, parties_db); st.rerun()
-                    else:
-                        st.button("빈자리", key=f"e_{p_id}_{e_idx}", disabled=True, use_container_width=True)
+        # 버튼들을 확실하게 2열로 배치
+        for i in range(0, len(slots), 2):
+            c1, c2 = st.columns(2)
+            with c1:
+                render_slot(slots[i], p, p_id, d_list)
+            if i + 1 < len(slots):
+                with c2:
+                    render_slot(slots[i+1], p, p_id, d_list)
 
 # ==========================================
 # 🏠 홈 현황판
@@ -204,11 +206,15 @@ with t_home:
             pm_list = [p for p in d_list if classify_time(p.get("time", "")) == "pm"]
             night_list = [p for p in d_list if classify_time(p.get("time", "")) == "night"]
             
+            # 파티 카드들을 확실하게 2열로 배치 (오류 방지 로직 적용)
             def render_grid(p_list):
-                cols = st.columns(2) 
-                for idx, p in enumerate(p_list):
-                    with cols[idx % 2]:
-                        render_party_card(p, d_list)
+                for i in range(0, len(p_list), 2):
+                    cols = st.columns(2)
+                    with cols[0]:
+                        render_party_card(p_list[i], d_list)
+                    if i + 1 < len(p_list):
+                        with cols[1]:
+                            render_party_card(p_list[i+1], d_list)
             
             if am_list:
                 st.markdown("##### ☀️ 오전")
