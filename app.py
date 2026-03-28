@@ -164,22 +164,40 @@ with t_manage:
         with st.form("c_form"):
             s_cat = st.selectbox("📌 카테고리", CATEGORIES)
             
-            st.write("**⏰ 시간 설정** (빠른 선택 가능)")
-            q_times = ["오전 10시 ~ 오후 12시", "오후 8시 ~ 오후 10시", "오후 10시 ~ 오전 12시"]
-            s_quick = st.radio("빠른 시간 선택", ["직접 입력"] + q_times, horizontal=True)
+            # --- 24시간 1시간 단위 리스트 자동 생성 ---
+            q_times = []
+            for h in range(24):
+                # 시작 시간 계산
+                s_am = "오전" if h < 12 else "오후"
+                s_h = 12 if h % 12 == 0 else h % 12
+                # 종료 시간 계산 (+1시간)
+                nxt_h = (h + 1) % 24
+                e_am = "오전" if nxt_h < 12 else "오후"
+                e_h = 12 if nxt_h % 12 == 0 else nxt_h % 12
+                
+                # 0시~5시(오전 12시~오전 5시)는 심야팟 태그 추가
+                tag = " 🌙[심야팟]" if h < 6 else ""
+                q_times.append(f"{s_am} {s_h}시 ~ {e_am} {e_h}시{tag}")
+
+            st.write("**⏰ 시간 설정** (1시간 단위 빠른 선택)")
+            s_quick = st.selectbox("⚡ 빠른 시간 선택", ["직접 입력하기 (2시간 이상 등)"] + q_times)
             
-            t1, t2, t3, t4 = st.columns(4)
-            s_am = t1.selectbox("시작", ["오전", "오후"], index=1)
-            s_hr = t2.selectbox("시", [f"{i}시" for i in range(1, 13)], index=7)
-            e_am = t3.selectbox("종료", ["오전", "오후"], index=1)
-            e_hr = t4.selectbox("시", [f"{i}시" for i in range(1, 13)], index=9)
+            # 직접 입력을 선택했을 때만 아래 세팅값을 씁니다.
+            with st.expander("🛠️ 직접 시간 설정하기 (원하는 분들만 사용)"):
+                t1, t2, t3, t4 = st.columns(4)
+                s_am_m = t1.selectbox("시작", ["오전", "오후"], index=1)
+                s_hr_m = t2.selectbox("시", [f"{i}시" for i in range(1, 13)], index=7)
+                e_am_m = t3.selectbox("종료", ["오전", "오후"], index=1)
+                e_hr_m = t4.selectbox("시", [f"{i}시" for i in range(1, 13)], index=9)
             
             c1, c2 = st.columns(2)
             m_cap = c1.slider("정원(명)", 2, 12, 4)
             r_job = c2.multiselect("희망 직업 (비우면 무관)", JOB_LIST)
             
             if st.form_submit_button("🚀 파티 개설하기", use_container_width=True):
-                final_t = s_quick if s_quick != "직접 입력" else f"{s_am} {s_hr} ~ {e_am} {e_hr}"
+                # '빠른 시간'이 선택되어 있으면 그걸 쓰고, 아니면 직접 입력한 시간을 씁니다.
+                final_t = s_quick if s_quick != "직접 입력하기 (2시간 이상 등)" else f"{s_am_m} {s_hr_m} ~ {e_am_m} {e_hr_m}"
+                
                 if s_cat not in parties_db:
                     parties_db[s_cat] = {}
                 if g_date not in parties_db[s_cat]:
@@ -193,6 +211,7 @@ with t_manage:
                     "members": [u_name]
                 })
                 
+                # 정렬 기능 (심야팟 태그가 붙어있어도 문제없이 시간순 정렬 가능)
                 def get_h(ts):
                     try:
                         start_str = ts.split("~")[0].strip()
