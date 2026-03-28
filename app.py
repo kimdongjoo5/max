@@ -3,229 +3,254 @@ import json
 import os
 import uuid
 from datetime import date
-from streamlit_autorefresh import st_autorefresh
+import time
 
-# 10초마다 자동 갱신
-st_autorefresh(interval=10000, key="datarefresh")
-
+# ==========================================
+# ⚙️ 설정 및 데이터베이스 로드
+# ==========================================
 USER_DB_FILE = "users_db.json"
 PARTY_DB_FILE = "parties_db.json"
 CATEGORIES = ["일일숙제(600)", "일일숙제(청명파티)", "사냥파티", "퀘스트(용궁 등)", "어금니", "해골왕", "폭염왕"]
 JOB_LIST = ["전사", "도적", "주술사", "도사"]
 
+# 웹페이지 탭 제목 설정
 st.set_page_config(page_title="천국문파 예약 시스템", layout="wide")
 
-# ==========================================
-# 🎨 초압축 & 게임 UI 스타일 (CSS)
-# ==========================================
+# UI 스타일링 (크기를 절반으로 줄이고 슬림하게 압축, 반응형 디자인)
 st.markdown("""
 <style>
-    .block-container { padding-top: 1rem !important; padding-bottom: 1rem !important; }
-    .main-title { color: #2c3e50; font-size: 1.8rem; font-weight: 900; border-bottom: 3px solid #3498db; padding-bottom: 10px; margin-bottom: 15px; text-align: center; }
+    /* 전체 여백 및 배경 */
+    .block-container { padding-top: 1.5rem !important; padding-bottom: 1rem !important; }
     
-    div.stButton {
-        display: inline-block !important;
-        width: auto !important;
-        margin: 2px !important;
-    }
-    div.stButton > button {
-        padding: 4px 10px !important;
-        border-radius: 12px !important;
-        font-size: 0.75rem !important;
-        font-weight: bold !important;
-        min-height: 26px !important;
-        height: auto !important;
-        line-height: 1.2 !important;
-        border: 1px solid #dcdde1 !important;
-        background-color: #f1f2f6;
-        color: #2f3640;
-    }
-    div.stButton > button[kind="primary"] {
-        background-color: #e8f4fd !important;
-        border: 1px dashed #3498db !important;
-        color: #3498db !important;
-    }
-    div.stButton > button:hover:not([disabled]) {
-        border-color: #e74c3c !important;
-        color: #e74c3c !important;
-    }
-    div.stButton > button[disabled] {
-        opacity: 0.7 !important;
+    /* 제목 스타일 */
+    .main-title { color: #2c3e50; font-size: 2.2rem !important; font-weight: 900; border-bottom: 3px solid #3498db; padding-bottom: 10px; margin-bottom: 20px; text-align: center; }
+    
+    /* 카드 사이즈 축소 및 디자인 최적화 (3x3 배치용) */
+    .party-card { background-color: white; padding: 10px 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.08); margin-bottom: 15px; border-left: 4px solid #2ecc71; border: 1px solid #eee; min-height: 120px; }
+    .party-header { font-size: 1rem; font-weight: 900; color: #2c3e50; margin-bottom: 4px; display: flex; justify-content: space-between; }
+    .party-meta { font-size: 0.75rem; color: #7f8c8d; margin-bottom: 8px; font-weight: 600; }
+    
+    /* [변경됨] 예약자 목록: 투명 배경, 굵은 글씨 */
+    .member-badge { color: #2f3640; padding: 0px 4px; font-weight: bold; font-size: 0.75rem; margin-right: 0px; display: inline; border: none; background: transparent !important; }
+    .member-badge.me { color: #e74c3c !important; font-weight: 900; } /* 내 이름 강조 색상 */
+    .empty-slot { color: #b2bec3; padding: 0px 4px; font-size: 0.75rem; font-style: italic; display: inline; border: none; background: transparent !important; }
+    
+    /* 버튼 크기 축소 */
+    div.stButton > button { padding: 2px 10px; font-size: 0.85rem; border-radius: 6px; }
+
+    /* 모바일 환경 대응 */
+    @media (max-width: 768px) {
+        .main-title { font-size: 1.6rem !important; }
+        .party-header { font-size: 0.9rem !important; }
+        .member-badge, .empty-slot { font-size: 0.7rem !important; }
     }
 </style>
 """, unsafe_allow_html=True)
 
-def load_json(f_path, default):
-    if os.path.exists(f_path):
-        with open(f_path, "r", encoding="utf-8") as f:
+# 데이터 로드/저장 함수
+def load_json(file_path, default_data):
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
-    return default
+    return default_data
 
-def save_json(f_path, data):
-    with open(f_path, "w", encoding="utf-8") as f:
+def save_json(file_path, data):
+    with open(file_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 users_db = load_json(USER_DB_FILE, {})
 parties_db = load_json(PARTY_DB_FILE, {})
 
+# ==========================================
+# 👤 상단 로그인 및 날짜 선택 영역
+# ==========================================
 st.markdown('<div class="main-title">⚔️ 천국문파 파티 예약 시스템</div>', unsafe_allow_html=True)
 
-# ==========================================
-# 🔗 상단 퀵 링크 (모바일 알약 버튼)
-# ==========================================
-links = [
-    {"n": "거래소", "url": "https://www.classicbaram.gg/trade", "i": "💰"},
-    {"n": "체마계산", "url": "https://www.classicbaram.gg/calc/kingQuest/recommend", "i": "🧮"},
-    {"n": "갤러리", "url": "https://enter.dcinside.com/mgallery/board/lists/?id=wcserver", "i": "💬"},
-    {"n": "의상실", "url": "https://barambook.com/render", "i": "👗"},
-    {"n": "패치노트", "url": "https://www.classicbaram.gg/patchNotes", "i": "📜"}
-]
+# 자동 새로고침 (Home 탭에서만 활성화되도록 로직 수정)
+if 'auto_refresh' not in st.session_state:
+    st.session_state['auto_refresh'] = time.time()
 
-links_html = '<div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 20px;">'
-for l in links:
-    links_html += f'<a href="{l["url"]}" target="_blank" style="background: white; border: 1px solid #ddd; border-radius: 20px; padding: 6px 14px; font-size: 0.8rem; font-weight: bold; color: #2c3e50; text-decoration: none; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">{l["i"]} {l["n"]}</a>'
-links_html += '</div>'
-st.markdown(links_html, unsafe_allow_html=True)
+if time.time() - st.session_state['auto_refresh'] > 10:
+    st.session_state['auto_refresh'] = time.time()
+    st.rerun()
 
-# ==========================================
-# 👤 로그인 및 날짜 설정
-# ==========================================
-st.error("🚨 [필수] 아래에 닉네임을 입력해야 '빈자리' 버튼을 누를 수 있습니다!")
-col_l, col_d = st.columns([2, 1])
-with col_l:
-    u_name = st.text_input("🛡️ 닉네임 입력 (입력 후 엔터)", placeholder="예: 지존전사")
-with col_d:
-    g_date = str(st.date_input("📅 날짜", value=date.today()))
+col_login, _, col_date = st.columns([2, 1, 1])
+with col_login:
+    user_name = st.text_input("🛡️ 닉네임 입력 (최초 1회 직업 등록)", placeholder="지존전사 (입력 후 엔터)")
+with col_date:
+    # 📅 기준 날짜 선택
+    global_date = str(st.date_input("📅 조회/예약 날짜", value=date.today()))
 
-is_logged = False
-if u_name:
-    if u_name not in users_db:
-        job = st.selectbox("직업을 먼저 선택해주세요", JOB_LIST)
-        if st.button("내 직업 저장하기"):
-            users_db[u_name] = job
+current_user_job = ""
+is_logged_in = False
+
+if user_name:
+    if user_name not in users_db:
+        st.warning("등록된 직업이 없습니다. 직업을 선택해주세요.")
+        selected_job = st.selectbox("직업 선택", JOB_LIST)
+        if st.button("직업 저장하기"):
+            users_db[user_name] = selected_job
             save_json(USER_DB_FILE, users_db)
             st.rerun()
     else:
-        is_logged = True
+        current_user_job = users_db[user_name]
+        is_logged_in = True
+        st.success(f"✅ 접속됨: [{current_user_job}] {user_name}")
 
 st.write("---")
-t_home, t_manage = st.tabs(["🏠 실시간 현황", "➕ 파티 만들기"])
 
 # ==========================================
-# 🏠 홈 (실시간 현황 & 직접 터치 참여)
+# 🏠 탭 구성: [홈(전체현황)] / [파티 예약 및 관리]
 # ==========================================
-with t_home:
-    any_p = False
+tab_home, tab_manage = st.tabs(["🏠 홈 (생성순 현황)", "📝 파티 만들기 및 예약"])
+
+# ------------------------------------------
+# 탭 1: 홈 (전체 현황 대시보드 - 3x3 그리드)
+# ------------------------------------------
+with tab_home:
+    st.subheader(f"📊 {global_date} 전체 파티 현황")
+    
+    has_any_party = False
     for cat in CATEGORIES:
-        d_list = parties_db.get(cat, {}).get(g_date, [])
-        if d_list:
-            any_p = True
+        # daily_list는 생성된 순서대로 저장되어 있음
+        daily_list = parties_db.get(cat, {}).get(global_date, [])
+        
+        if daily_list:
+            has_any_party = True
             st.markdown(f"#### 📌 {cat}")
-            p_cols = st.columns(3)
-            for idx, p in enumerate(d_list):
-                with p_cols[idx % 3]:
-                    with st.container(border=True):
-                        p_id, cap, mems = p["id"], p["capacity"], p["members"]
-                        
-                        st.markdown(f'<div style="font-weight:900; font-size:0.95rem; display:flex; justify-content:space-between;"><span>⏰ {p["time"]}</span><span style="color:#e74c3c">{len(mems)}/{cap}</span></div>', unsafe_allow_html=True)
-                        st.markdown(f'<div style="font-size:0.75rem; color:#777; margin-bottom:8px;">🎯 {", ".join(p.get("req_jobs", [])) or "직업 무관"}</div>', unsafe_allow_html=True)
-
-                        for m in mems:
-                            if is_logged and m == u_name:
-                                if st.button(f"❌ {m}", key=f"out_{p_id}_{m}"):
-                                    p["members"].remove(u_name)
-                                    if not p["members"]:
-                                        d_list.remove(p)
-                                    save_json(PARTY_DB_FILE, parties_db)
-                                    st.rerun()
-                            else:
-                                st.button(f"[{users_db.get(m, '?')}] {m}", key=f"d_{p_id}_{m}", disabled=True)
-
-                        for i in range(cap - len(mems)):
-                            if is_logged and u_name not in mems:
-                                if st.button("➕ 빈자리", key=f"in_{p_id}_{i}", type="primary"):
-                                    p["members"].append(u_name)
-                                    save_json(PARTY_DB_FILE, parties_db)
-                                    st.rerun()
-                            else:
-                                st.button("빈자리", key=f"e_{p_id}_{i}", disabled=True)
-            st.write("")
-    if not any_p:
-        st.info("아직 개설된 파티가 없습니다.")
-
-# ==========================================
-# ➕ 파티 만들기 탭
-# ==========================================
-with t_manage:
-    if not is_logged:
-        st.warning("위쪽 닉네임 칸에 이름을 먼저 적어주세요!")
-    else:
-        st.subheader("📝 새로운 파티 등록")
-        with st.form("c_form"):
-            s_cat = st.selectbox("📌 카테고리", CATEGORIES)
             
-            # --- 24시간 1시간 단위 리스트 자동 생성 ---
-            q_times = []
-            for h in range(24):
-                # 시작 시간 계산
-                s_am = "오전" if h < 12 else "오후"
-                s_h = 12 if h % 12 == 0 else h % 12
-                # 종료 시간 계산 (+1시간)
-                nxt_h = (h + 1) % 24
-                e_am = "오전" if nxt_h < 12 else "오후"
-                e_h = 12 if nxt_h % 12 == 0 else nxt_h % 12
-                
-                # 0시~5시(오전 12시~오전 5시)는 심야팟 태그 추가
-                tag = " 🌙[심야팟]" if h < 6 else ""
-                q_times.append(f"{s_am} {s_h}시 ~ {e_am} {e_h}시{tag}")
+            # [변경됨] 3x3 형식의 3열 그리드 배치 (방 만들어진 순서대로)
+            cols = st.columns(3) 
+            # 낭비하지 않음: daily_list 개수만큼만 루프 돌고 columns 채움
+            for idx, party in enumerate(daily_list):
+                with cols[idx % 3]:
+                    # 카드 데이터 바인딩
+                    p_time, p_cap, p_members = party["time"], party["capacity"], party["members"]
+                    p_req = ", ".join(party["req_jobs"]) if party.get("req_jobs") else "조건 없음"
+                    
+                    # 카드 HTML 구성
+                    html_str = f"""
+                    <div class="party-card">
+                        <div class="party-header">⏰ {p_time} <span style="color:#e74c3c;">({len(p_members)}/{p_cap})</span></div>
+                        <div class="party-meta">🎯 희망 직업: {p_req}</div>
+                        <div>
+                    """
+                    # [변경됨] 멤버 스타일: 투명 배경, 콤마 분리
+                    mems_html_list = []
+                    for member in p_members:
+                        mem_job = users_db.get(member, "?")
+                        is_me_class = " me" if is_logged_in and member == user_name else ""
+                        mems_html_list.append(f'<span class="member-badge{is_me_class}">[{mem_job}] {member}</span>')
+                    
+                    # 빈자리 표시
+                    for _ in range(p_cap - len(p_members)):
+                        mems_html_list.append('<span class="empty-slot">빈자리</span>')
+                    
+                    # 콤마로 연결
+                    html_str += ", ".join(mems_html_list)
+                    html_str += '</div></div>'
+                    
+                    st.markdown(html_str, unsafe_allow_html=True)
+            st.write("---")
+            
+    if not has_any_party:
+        st.info("현재 등록된 파티가 없습니다. [파티 관리] 탭에서 생성해주세요.")
 
-            st.write("**⏰ 시간 설정** (1시간 단위 빠른 선택)")
-            s_quick = st.selectbox("⚡ 빠른 시간 선택", ["직접 입력하기 (2시간 이상 등)"] + q_times)
+# ------------------------------------------
+# 탭 2: 파티 예약 및 관리
+# ------------------------------------------
+with tab_manage:
+    col_cat, _ = st.columns([1, 2])
+    with col_cat:
+        selected_category = st.selectbox("📌 카테고리 선택", CATEGORIES)
+    
+    if selected_category not in parties_db:
+        parties_db[selected_category] = {}
+    if global_date not in parties_db[selected_category]:
+        parties_db[selected_category][global_date] = []
+        
+    daily_parties = parties_db[selected_category][global_date]
+    
+    if is_logged_in:
+        with st.expander("➕ [새 파티 개설] 클릭하여 세부 조건 설정"):
+            st.write("**시간 설정 (오전/오후 분리)**")
+            col_t1, col_t2, col_t3, col_t4 = st.columns(4)
+            with col_t1: start_ampm = st.selectbox("시작", ["오전", "오후"], key="s_ampm")
+            with col_t2: start_time = st.selectbox("시간", [f"{i}시" for i in range(1, 13)], key="s_time")
+            with col_t3: end_ampm = st.selectbox("종료", ["오전", "오후"], key="e_ampm")
+            with col_t4: end_time = st.selectbox("시간", [f"{i}시" for i in range(1, 13)], key="e_time")
             
-            # 직접 입력을 선택했을 때만 아래 세팅값을 씁니다.
-            with st.expander("🛠️ 직접 시간 설정하기 (원하는 분들만 사용)"):
-                t1, t2, t3, t4 = st.columns(4)
-                s_am_m = t1.selectbox("시작", ["오전", "오후"], index=1)
-                s_hr_m = t2.selectbox("시", [f"{i}시" for i in range(1, 13)], index=7)
-                e_am_m = t3.selectbox("종료", ["오전", "오후"], index=1)
-                e_hr_m = t4.selectbox("시", [f"{i}시" for i in range(1, 13)], index=9)
+            st.write("**파티 조건**")
+            col_c1, col_c2 = st.columns(2)
+            with col_c1: max_cap = st.number_input("파티 정원", min_value=2, max_value=12, value=4)
+            with col_c2: req_jobs = st.multiselect("희망 직업 (선택사항)", JOB_LIST)
             
-            c1, c2 = st.columns(2)
-            m_cap = c1.slider("정원(명)", 2, 12, 4)
-            r_job = c2.multiselect("희망 직업 (비우면 무관)", JOB_LIST)
-            
-            if st.form_submit_button("🚀 파티 개설하기", use_container_width=True):
-                # '빠른 시간'이 선택되어 있으면 그걸 쓰고, 아니면 직접 입력한 시간을 씁니다.
-                final_t = s_quick if s_quick != "직접 입력하기 (2시간 이상 등)" else f"{s_am_m} {s_hr_m} ~ {e_am_m} {e_hr_m}"
-                
-                if s_cat not in parties_db:
-                    parties_db[s_cat] = {}
-                if g_date not in parties_db[s_cat]:
-                    parties_db[s_cat][g_date] = []
-                
-                parties_db[s_cat][g_date].append({
-                    "id": str(uuid.uuid4()), 
-                    "time": final_t, 
-                    "capacity": m_cap, 
-                    "req_jobs": r_job, 
-                    "members": [u_name]
-                })
-                
-                # 정렬 기능 (심야팟 태그가 붙어있어도 문제없이 시간순 정렬 가능)
-                def get_h(ts):
-                    try:
-                        start_str = ts.split("~")[0].strip()
-                        ampm, h_str = start_str.split(" ")
-                        hour = int(h_str.replace("시", ""))
-                        if ampm == "오후" and hour != 12: 
-                            hour += 12
-                        elif ampm == "오전" and hour == 12: 
-                            hour = 0
-                        return hour
-                    except: 
-                        return 0
-                        
-                parties_db[s_cat][g_date].sort(key=lambda x: get_h(x['time']))
+            if st.button("파티 개설 완료", type="primary"):
+                time_str = f"{start_ampm} {start_time} ~ {end_ampm} {end_time}"
+                # [정렬 변경] 시간순 정렬 기능을 빼고 그냥 append만 함 (생성순 저장)
+                new_party = {
+                    "id": str(uuid.uuid4()),
+                    "time": time_str,
+                    "capacity": max_cap,
+                    "req_jobs": req_jobs,
+                    "members": [user_name]
+                }
+                daily_parties.append(new_party)
+                # parties_db 데이터베이스 업데이트 (저장은 안 함)
                 save_json(PARTY_DB_FILE, parties_db)
-                st.success("개설 완료! '실시간 현황'에서 확인하세요.")
                 st.rerun()
+                
+    st.write("---")
+    
+    if not daily_parties:
+        st.info("개설된 파티가 없습니다.")
+    else:
+        # 파티 예약/취소 탭에서도 3x3 배치 적용
+        cols = st.columns(3) 
+        for idx, party in enumerate(daily_parties):
+            with cols[idx % 3]:
+                p_id, p_time, p_cap, p_members = party["id"], party["time"], party["capacity"], party["members"]
+                p_req = ", ".join(party["req_jobs"]) if party.get("req_jobs") else "조건 없음"
+                
+                is_full = len(p_members) >= p_cap
+                is_joined = is_logged_in and user_name in p_members
+                
+                # 카드 HTML 구성 (버튼 기능 제외)
+                html_str = f"""
+                <div class="party-card">
+                    <div class="party-header">⏰ {p_time} <span style="color: {'#e74c3c' if is_full else '#27ae60'}; float: right;">({len(p_members)}/{p_cap})</span></div>
+                    <div class="party-meta">🎯 희망 직업: {p_req}</div>
+                    <div>
+                """
+                # [변경됨] 멤버 스타일: 투명 배경, 콤마 분리
+                mems_html_list = []
+                for member in p_members:
+                    mem_job = users_db.get(member, "?")
+                    is_me_class = " me" if is_logged_in and member == user_name else ""
+                    mems_html_list.append(f'<span class="member-badge{is_me_class}">[{mem_job}] {member}</span>')
+                
+                # 빈자리 표시
+                for _ in range(p_cap - len(p_members)):
+                    mems_html_list.append('<span class="empty-slot">빈자리</span>')
+                
+                # 콤마로 연결
+                html_str += ", ".join(mems_html_list)
+                html_str += '</div></div>'
+                
+                st.markdown(html_str, unsafe_allow_html=True)
+                
+                # 버튼 로직
+                if is_logged_in:
+                    if is_joined:
+                        if st.button("🔴 나가기", key=f"leave_{p_id}", use_container_width=True):
+                            party["members"].remove(user_name)
+                            if len(party["members"]) == 0: daily_parties.remove(party)
+                            save_json(PARTY_DB_FILE, parties_db)
+                            st.rerun()
+                    elif not is_full:
+                        if st.button("🔵 참여하기", key=f"join_{p_id}", type="primary", use_container_width=True):
+                            party["members"].append(user_name)
+                            save_json(PARTY_DB_FILE, parties_db)
+                            st.rerun()
+                    else:
+                        st.button("🔒 마감", key=f"full_{p_id}", disabled=True, use_container_width=True)
