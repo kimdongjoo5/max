@@ -16,20 +16,20 @@ JOB_LIST = ["전사", "도적", "주술사", "도사"]
 st.set_page_config(page_title="천국문파 예약 시스템", layout="wide")
 
 # ==========================================
-# 🎨 UI 스타일 (알록달록 배지버튼 & 글씨 축소)
+# 🎨 UI 스타일 (2열 배치 및 버튼 꽉 채우기 적용)
 # ==========================================
 st.markdown("""
 <style>
     .block-container { padding-top: 1rem !important; padding-bottom: 1rem !important; }
     .main-title { color: #2c3e50; font-size: 1.6rem; font-weight: 900; border-bottom: 3px solid #3498db; padding-bottom: 10px; margin-bottom: 15px; text-align: center; }
     
-    /* 카드 컨테이너 내부 여백 줄이기 */
     [data-testid="stVerticalBlockBorderWrapper"] { padding: 0.4rem !important; }
 
-    /* 버튼을 이름표(배지) 모양으로 완벽 위장 */
-    div.stButton { display: inline-block !important; width: auto !important; margin: 2px !important; }
+    /* 버튼 가로 길이를 100%로 채워서 2열 분할 시 꽉 차게 예쁘게 보이도록 수정 */
+    div.stButton { margin: 2px 0px !important; width: 100% !important; }
     div.stButton > button {
-        padding: 2px 6px !important;
+        width: 100% !important;
+        padding: 4px 0px !important;
         border-radius: 6px !important;
         font-size: 0.75rem !important;
         font-weight: bold !important;
@@ -80,10 +80,23 @@ def save_json(f_path, data):
 users_db = load_json(USER_DB_FILE, {})
 parties_db = load_json(PARTY_DB_FILE, {})
 
+# ==========================================
+# 🧹 과거 데이터 자동 삭제 (24시간 경과 = 전날)
+# ==========================================
+today_str = str(date.today())
+cleaned = False
+for cat in list(parties_db.keys()):
+    for d in list(parties_db[cat].keys()):
+        if d < today_str:
+            del parties_db[cat][d]
+            cleaned = True
+if cleaned:
+    save_json(PARTY_DB_FILE, parties_db)
+
 st.markdown('<div class="main-title">⚔️ 천국문파 파티 예약 시스템</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 🔗 상단 퀵 링크 (알약 버튼)
+# 🔗 상단 퀵 링크 (3행 2열 바둑판 배치)
 # ==========================================
 links = [
     {"n": "거래소", "url": "https://www.classicbaram.gg/trade", "i": "💰"},
@@ -93,9 +106,10 @@ links = [
     {"n": "패치노트", "url": "https://www.classicbaram.gg/patchNotes", "i": "📜"}
 ]
 
-links_html = '<div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 20px;">'
+# CSS Grid를 사용하여 무조건 2칸씩(2열) 채우도록 마법 부여!
+links_html = '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 20px;">'
 for l in links:
-    links_html += f'<a href="{l["url"]}" target="_blank" style="background: white; border: 1px solid #ddd; border-radius: 20px; padding: 4px 12px; font-size: 0.75rem; font-weight: bold; color: #2c3e50; text-decoration: none; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">{l["i"]} {l["n"]}</a>'
+    links_html += f'<a href="{l["url"]}" target="_blank" style="background: white; border: 1px solid #ddd; border-radius: 12px; padding: 8px; font-size: 0.8rem; font-weight: bold; color: #2c3e50; text-decoration: none; box-shadow: 0 1px 2px rgba(0,0,0,0.05); text-align: center;">{l["i"]} {l["n"]}</a>'
 links_html += '</div>'
 st.markdown(links_html, unsafe_allow_html=True)
 
@@ -118,7 +132,7 @@ st.write("---")
 t_home, t_manage = st.tabs(["🏠 실시간 현황", "➕ 파티 만들기"])
 
 # ==========================================
-# 🏠 홈 (3x3 배열 및 색깔 배지버튼)
+# 🏠 홈 (3x3 배열 및 참가자 2열 분할)
 # ==========================================
 with t_home:
     any_p = False
@@ -135,24 +149,33 @@ with t_home:
                         p_id, cap, mems = p["id"], p["capacity"], p["members"]
                         
                         st.markdown(f'<div style="font-weight:900; font-size:0.85rem; display:flex; justify-content:space-between; margin-bottom:2px;"><span>⏰ {p["time"]}</span><span style="color:#e74c3c">{len(mems)}/{cap}</span></div>', unsafe_allow_html=True)
-                        st.markdown(f'<div style="font-size:0.7rem; color:#7f8c8d; margin-bottom:6px;">🎯 {", ".join(p.get("req_jobs", [])) or "직업 무관"}</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div style="font-size:0.7rem; color:#7f8c8d; margin-bottom:8px;">🎯 {", ".join(p.get("req_jobs", [])) or "직업 무관"}</div>', unsafe_allow_html=True)
 
-                        for m in mems:
-                            if is_logged and m == u_name:
-                                if st.button(f"❌ {m}", key=f"out_{p_id}_{m}"):
-                                    p["members"].remove(u_name)
-                                    if not p["members"]: d_list.remove(p)
-                                    save_json(PARTY_DB_FILE, parties_db); st.rerun()
-                            else:
-                                st.button(f"[{users_db.get(m, '?')}] {m}", key=f"d_{p_id}_{m}", disabled=True)
-
-                        for i in range(cap - len(mems)):
-                            if is_logged and u_name not in mems:
-                                if st.button("➕빈자리", key=f"in_{p_id}_{i}", type="primary"):
-                                    p["members"].append(u_name)
-                                    save_json(PARTY_DB_FILE, parties_db); st.rerun()
-                            else:
-                                st.button("빈자리", key=f"e_{p_id}_{i}", disabled=True)
+                        # 슬롯(사람+빈자리) 데이터를 리스트로 통합
+                        slots = [{"t": "m", "v": m} for m in mems] + [{"t": "e", "v": i} for i in range(cap - len(mems))]
+                        
+                        # ✨ 2열 분리 마법 (좌/우 스왑하며 채우기)
+                        c1, c2 = st.columns(2)
+                        for s_idx, slot in enumerate(slots):
+                            col = c1 if s_idx % 2 == 0 else c2
+                            with col:
+                                if slot["t"] == "m":
+                                    m = slot["v"]
+                                    if is_logged and m == u_name:
+                                        if st.button(f"❌ {m}", key=f"out_{p_id}_{m}", use_container_width=True):
+                                            p["members"].remove(u_name)
+                                            if not p["members"]: d_list.remove(p)
+                                            save_json(PARTY_DB_FILE, parties_db); st.rerun()
+                                    else:
+                                        st.button(f"[{users_db.get(m, '?')}] {m}", key=f"d_{p_id}_{m}", disabled=True, use_container_width=True)
+                                else:
+                                    e_idx = slot["v"]
+                                    if is_logged and u_name not in mems:
+                                        if st.button("➕빈자리", key=f"in_{p_id}_{e_idx}", type="primary", use_container_width=True):
+                                            p["members"].append(u_name)
+                                            save_json(PARTY_DB_FILE, parties_db); st.rerun()
+                                    else:
+                                        st.button("빈자리", key=f"e_{p_id}_{e_idx}", disabled=True, use_container_width=True)
             st.write("")
     if not any_p: st.info("아직 개설된 파티가 없습니다.")
 
@@ -190,16 +213,13 @@ with t_manage:
             r_job = c2.multiselect("희망 직업 (비우면 무관)", JOB_LIST)
             
             if st.form_submit_button("🚀 파티 개설하기", use_container_width=True):
-                # 에러를 방지하기 위해 코드를 여러 줄로 안전하게 쪼갰습니다.
                 if s_quick != "직접 입력하기 (2시간 이상 등)":
                     final_t = s_quick
                 else:
                     final_t = f"{s_am_m} {s_hr_m} ~ {e_am_m} {e_hr_m}"
                 
-                if s_cat not in parties_db: 
-                    parties_db[s_cat] = {}
-                if g_date not in parties_db[s_cat]: 
-                    parties_db[s_cat][g_date] = []
+                if s_cat not in parties_db: parties_db[s_cat] = {}
+                if g_date not in parties_db[s_cat]: parties_db[s_cat][g_date] = []
                 
                 new_party = {
                     "id": str(uuid.uuid4()), 
