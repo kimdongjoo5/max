@@ -6,7 +6,7 @@ from datetime import date
 from streamlit_autorefresh import st_autorefresh
 
 # ==========================================
-# 👑 관리자 전용 비밀번호 설정 (원하는 비밀번호로 바꾸세요!)
+# 👑 관리자 전용 비밀번호 설정
 # ==========================================
 ADMIN_PASSWORD = "1234"  
 
@@ -15,7 +15,13 @@ st_autorefresh(interval=10000, key="datarefresh")
 
 USER_DB_FILE = "users_db.json"
 PARTY_DB_FILE = "parties_db.json"
-CATEGORIES = ["일일숙제(600)", "일일숙제(청명파티)", "사냥파티", "4차팟", "3차팟", "퀘스트(용궁 등)", "어금니", "해골왕", "폭염왕"]
+
+# 🔥 카테고리 업데이트 완료! (용궁,어금니,해골왕 제거 / 900층,900빽,흉노 추가)
+CATEGORIES = [
+    "일일숙제(600)", "일일숙제(청명파티)", 
+    "사냥파티", "사냥파티(900층)", "사냥파티(900빽)", "사냥파티(흉노)",
+    "4차팟", "3차팟", "폭염왕"
+]
 JOB_LIST = ["전사", "도적", "주술사", "도사"]
 
 st.set_page_config(page_title="천국문파 예약 시스템", layout="wide")
@@ -111,6 +117,12 @@ for cat in list(parties_db.keys()):
                 cleaned = True
 if cleaned: save_json(PARTY_DB_FILE, parties_db)
 
+# 직접 생성된 커스텀 카테고리도 현황판에 표시하기 위해 합치기!
+all_display_cats = list(CATEGORIES)
+for custom_cat in parties_db.keys():
+    if custom_cat not in all_display_cats:
+        all_display_cats.append(custom_cat)
+
 st.markdown('<div class="main-title">⚔️ 천국문파 파티 예약 시스템</div>', unsafe_allow_html=True)
 
 # ==========================================
@@ -147,7 +159,6 @@ if u_name:
 
 st.write("---")
 
-# 🔥 탭이 3개로 늘어났습니다! (관리자 탭 추가)
 t_home, t_manage, t_admin = st.tabs(["🏠 실시간 현황", "➕ 파티 만들기", "👑 관리자"])
 
 # ==========================================
@@ -199,7 +210,7 @@ def render_party_card(p, d_list):
 # ==========================================
 with t_home:
     any_p = False
-    for cat in CATEGORIES:
+    for cat in all_display_cats:
         cat_data = parties_db.get(cat, {})
         if not isinstance(cat_data, dict): cat_data = {}
         d_list = cat_data.get(g_date, [])
@@ -243,7 +254,7 @@ with t_home:
         st.info("아직 개설된 파티가 없습니다.")
 
 # ==========================================
-# ➕ 파티 만들기 탭 (모든 유저 개설 가능)
+# ➕ 파티 만들기 탭
 # ==========================================
 with t_manage:
     if not is_logged:
@@ -251,8 +262,15 @@ with t_manage:
     else:
         st.subheader("📝 새로운 파티 등록")
         
-        s_cat = st.selectbox("📌 카테고리", CATEGORIES)
+        # 🔥 '직접 입력' 카테고리 기능 추가
+        cat_options = CATEGORIES + ["✍️ 직접 입력 (새로운 파티명)"]
+        s_cat_selection = st.selectbox("📌 카테고리", cat_options)
         
+        if s_cat_selection == "✍️ 직접 입력 (새로운 파티명)":
+            s_cat = st.text_input("💡 새로운 파티 이름을 적어주세요!", placeholder="예: 번개팟, 흉노 지원 등")
+        else:
+            s_cat = s_cat_selection
+            
         time_zone = st.radio(
             "⚡ 시간대 선택 (버튼 클릭)", 
             ["☀️ 오전 (06~11시)", "🌤️ 오후 (12~23시)", "🌙 심야 (00~05시)", "🛠️ 직접 입력"], 
@@ -284,38 +302,41 @@ with t_manage:
         r_job = c2.multiselect("희망 직업 (비우면 무관)", JOB_LIST)
         
         if st.button("🚀 파티 개설하기", use_container_width=True, type="primary"):
-            if is_custom: final_t = f"{s_am_m} {s_hr_m} ~ {e_am_m} {e_hr_m}"
-            
-            if s_cat not in parties_db: parties_db[s_cat] = {}
-            if g_date not in parties_db[s_cat]: parties_db[s_cat][g_date] = []
-            
-            # 🔥 본인이 만든 중복 방 자동 삭제 유지
-            parties_db[s_cat][g_date] = [
-                p for p in parties_db[s_cat][g_date] 
-                if not (len(p.get("members", [])) > 0 and p["members"][0] == u_name)
-            ]
-            
-            new_party = {"id": str(uuid.uuid4()), "time": final_t, "capacity": m_cap, "req_jobs": r_job, "members": [u_name]}
-            parties_db[s_cat][g_date].append(new_party)
-            
-            def get_h(ts):
-                try:
-                    start_str = ts.split("~")[0].strip()
-                    ampm, h_str = start_str.split(" ")
-                    hour = int(h_str.replace("시", ""))
-                    if ampm == "오후" and hour != 12: hour += 12
-                    elif ampm == "오전" and hour == 12: hour = 0
-                    return hour
-                except: return 0
+            if not s_cat:
+                st.error("🚨 카테고리(파티 이름)를 입력해주세요!")
+            else:
+                if is_custom: final_t = f"{s_am_m} {s_hr_m} ~ {e_am_m} {e_hr_m}"
                 
-            parties_db[s_cat][g_date].sort(key=lambda x: get_h(x.get('time', '')))
-            save_json(PARTY_DB_FILE, parties_db)
-            
-            st.session_state["toast_msg"] = f"[{s_cat}] 파티가 성공적으로 개설되었습니다! 🎉"
-            st.rerun()
+                if s_cat not in parties_db: parties_db[s_cat] = {}
+                if g_date not in parties_db[s_cat]: parties_db[s_cat][g_date] = []
+                
+                # 본인이 만든 중복 방 자동 삭제 
+                parties_db[s_cat][g_date] = [
+                    p for p in parties_db[s_cat][g_date] 
+                    if not (len(p.get("members", [])) > 0 and p["members"][0] == u_name)
+                ]
+                
+                new_party = {"id": str(uuid.uuid4()), "time": final_t, "capacity": m_cap, "req_jobs": r_job, "members": [u_name]}
+                parties_db[s_cat][g_date].append(new_party)
+                
+                def get_h(ts):
+                    try:
+                        start_str = ts.split("~")[0].strip()
+                        ampm, h_str = start_str.split(" ")
+                        hour = int(h_str.replace("시", ""))
+                        if ampm == "오후" and hour != 12: hour += 12
+                        elif ampm == "오전" and hour == 12: hour = 0
+                        return hour
+                    except: return 0
+                    
+                parties_db[s_cat][g_date].sort(key=lambda x: get_h(x.get('time', '')))
+                save_json(PARTY_DB_FILE, parties_db)
+                
+                st.session_state["toast_msg"] = f"[{s_cat}] 파티가 성공적으로 개설되었습니다! 🎉"
+                st.rerun()
 
 # ==========================================
-# 👑 관리자 탭 (형님만 몰래 쓰는 기능)
+# 👑 관리자 탭
 # ==========================================
 with t_admin:
     st.subheader("👑 관리자 전용 제어판")
@@ -327,7 +348,7 @@ with t_admin:
         st.caption(f"기준 날짜: {g_date}")
         
         has_rooms_to_del = False
-        for cat in CATEGORIES:
+        for cat in all_display_cats:
             d_list = parties_db.get(cat, {}).get(g_date, [])
             if d_list:
                 has_rooms_to_del = True
@@ -341,7 +362,6 @@ with t_admin:
                     with c1:
                         st.write(f"⏰ {p_time} | 방장: [{host}]")
                     with c2:
-                        # 관리자가 폭파 버튼을 누르면 즉시 삭제
                         if st.button("💣 폭파", key=f"adm_del_{p_id}", type="primary"):
                             d_list.remove(p)
                             save_json(PARTY_DB_FILE, parties_db)
