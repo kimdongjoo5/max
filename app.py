@@ -16,7 +16,7 @@ st_autorefresh(interval=10000, key="datarefresh")
 USER_DB_FILE = "users_db.json"
 PARTY_DB_FILE = "parties_db.json"
 
-# 🔥 청명파티 제거 완료!
+# 카테고리 목록
 CATEGORIES = [
     "일일숙제(600)", 
     "사냥파티", "사냥파티(900층)", "사냥파티(900빽)", "사냥파티(흉노)",
@@ -117,7 +117,6 @@ for cat in list(parties_db.keys()):
                 cleaned = True
 if cleaned: save_json(PARTY_DB_FILE, parties_db)
 
-# 직접 생성된 커스텀 카테고리도 현황판에 표시하기 위해 합치기!
 all_display_cats = list(CATEGORIES)
 for custom_cat in parties_db.keys():
     if custom_cat not in all_display_cats:
@@ -143,11 +142,21 @@ links_html += '</div>'
 st.markdown(links_html, unsafe_allow_html=True)
 
 # ==========================================
-# 👤 로그인 및 날짜 설정
+# 👤 로그인 및 날짜 설정 (🔥 시인성 극대화 🔥)
 # ==========================================
-col_l, col_d = st.columns([2, 1])
-with col_l: u_name = st.text_input("🛡️ 닉네임 (입력해야 참여 가능)", placeholder="예: 지존전사")
-with col_d: g_date = str(st.date_input("📅 날짜", value=date.today()))
+st.markdown("""
+<div style="background-color: #fff3cd; color: #856404; padding: 12px; border-radius: 8px; border: 2px solid #ffeeba; margin-bottom: 10px; text-align: center;">
+    <b>🚨 필수 안내:</b> 파티에 참여하거나 개설하려면 <b>가장 먼저 아래 빈칸에 닉네임을 입력</b>해주세요!
+</div>
+""", unsafe_allow_html=True)
+
+with st.container(border=True):
+    col_l, col_d = st.columns([2, 1])
+    with col_l: 
+        # placeholder(힌트 텍스트)를 길고 명확하게 수정
+        u_name = st.text_input("🛡️ 닉네임 입력 (여기를 터치하세요!)", placeholder="예: 지존전사 (입력 후 엔터)")
+    with col_d: 
+        g_date = str(st.date_input("📅 기준 날짜", value=date.today()))
 
 is_logged = False
 if u_name:
@@ -190,15 +199,12 @@ def render_party_card(p, d_list):
     mems = p.get("members", [])
     p_time = p.get("time", "시간 미정")
     req_jobs_str = ", ".join(p.get("req_jobs", [])) if p.get("req_jobs") else "직업 무관"
-    
-    # 🔥 비고란 데이터 가져오기
     p_remark = p.get("remark", "")
 
     with st.container(border=True):
         st.markdown(f'<div style="font-weight:900; font-size:0.85rem; display:flex; justify-content:space-between; margin-bottom:2px;"><span>⏰ {p_time}</span><span style="color:#e74c3c">{len(mems)}/{cap}</span></div>', unsafe_allow_html=True)
         st.markdown(f'<div style="font-size:0.7rem; color:#7f8c8d; margin-bottom:4px;">🎯 {req_jobs_str}</div>', unsafe_allow_html=True)
         
-        # 🔥 비고란이 존재하면 카드에 예쁘게 표시
         if p_remark:
             st.markdown(f'<div style="font-size:0.7rem; color:#d35400; background-color:#fcf3cf; padding:4px 6px; border-radius:4px; margin-bottom:8px; line-height:1.2;">📝 {p_remark}</div>', unsafe_allow_html=True)
         else:
@@ -271,7 +277,8 @@ with t_manage:
     else:
         st.subheader("📝 새로운 파티 등록")
         
-        cat_options = CATEGORIES + ["✍️ 직접 입력 (새로운 파티명)"]
+        # 🔥 '직접 입력'을 리스트 맨 앞으로 뺐습니다!
+        cat_options = ["✍️ 직접 입력 (새로운 파티명)"] + CATEGORIES
         s_cat_selection = st.selectbox("📌 카테고리", cat_options)
         
         if s_cat_selection == "✍️ 직접 입력 (새로운 파티명)":
@@ -305,7 +312,6 @@ with t_manage:
             e_am_m = t3.selectbox("종료", ["오전", "오후"], index=1)
             e_hr_m = t4.selectbox("시", [f"{i}시" for i in range(1, 13)], index=9)
         
-        # 🔥 방 생성 목적/설명을 적을 수 있는 비고란 추가!
         p_remark = st.text_input("💬 파티 설명 및 비고 (선택사항)", placeholder="예: 디코 가능자, 빠른 진행, 매너 필수 등")
 
         c1, c2 = st.columns(2)
@@ -321,13 +327,11 @@ with t_manage:
                 if s_cat not in parties_db: parties_db[s_cat] = {}
                 if g_date not in parties_db[s_cat]: parties_db[s_cat][g_date] = []
                 
-                # 본인이 만든 중복 방 자동 삭제 
                 parties_db[s_cat][g_date] = [
                     p for p in parties_db[s_cat][g_date] 
                     if not (len(p.get("members", [])) > 0 and p["members"][0] == u_name)
                 ]
                 
-                # 비고(remark) 정보도 같이 저장
                 new_party = {
                     "id": str(uuid.uuid4()), 
                     "time": final_t, 
