@@ -16,7 +16,14 @@ JOB_LIST = ["전사", "도적", "주술사", "도사"]
 st.set_page_config(page_title="천국문파 예약 시스템", layout="wide")
 
 # ==========================================
-# 🎨 UI 스타일 (🔥 스트림릿 1열 고집 박살! 절대 2열 강제 고정 🔥)
+# 🔔 팝업 알림(Toast) 시스템
+# ==========================================
+if "toast_msg" in st.session_state:
+    st.toast(st.session_state["toast_msg"], icon="✅")
+    del st.session_state["toast_msg"]
+
+# ==========================================
+# 🎨 UI 스타일 (🔥 절대 2열 강제 고정 마법 🔥)
 # ==========================================
 st.markdown("""
 <style>
@@ -25,7 +32,7 @@ st.markdown("""
     
     [data-testid="stVerticalBlockBorderWrapper"] { padding: 0.4rem !important; }
 
-    /* 🔥 궁극의 마법: PC든 모바일이든 무조건 화면을 50%씩 2열로 강제 분할 🔥 */
+    /* PC/모바일 무조건 50%씩 2열로 강제 분할 */
     div[data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
@@ -172,7 +179,6 @@ def render_party_card(p, d_list):
 
         slots = [{"t": "m", "v": m} for m in mems] + [{"t": "e", "v": i} for i in range(max(0, cap - len(mems)))]
         
-        # 버튼들을 확실하게 2열로 배치
         for i in range(0, len(slots), 2):
             c1, c2 = st.columns(2)
             with c1:
@@ -206,7 +212,6 @@ with t_home:
             pm_list = [p for p in d_list if classify_time(p.get("time", "")) == "pm"]
             night_list = [p for p in d_list if classify_time(p.get("time", "")) == "night"]
             
-            # 파티 카드들을 확실하게 2열로 배치 (오류 방지 로직 적용)
             def render_grid(p_list):
                 for i in range(0, len(p_list), 2):
                     cols = st.columns(2)
@@ -231,7 +236,7 @@ with t_home:
         st.info("아직 개설된 파티가 없습니다.")
 
 # ==========================================
-# ➕ 파티 만들기 탭
+# ➕ 파티 만들기 탭 (중복 도배 방지 탑재!)
 # ==========================================
 with t_manage:
     if not is_logged:
@@ -276,6 +281,12 @@ with t_manage:
             if s_cat not in parties_db: parties_db[s_cat] = {}
             if g_date not in parties_db[s_cat]: parties_db[s_cat][g_date] = []
             
+            # 🔥 중복 생성 방지: 이 카테고리/날짜에 내가 방장(첫번째 멤버)인 방을 모두 찾아 삭제
+            parties_db[s_cat][g_date] = [
+                p for p in parties_db[s_cat][g_date] 
+                if not (len(p.get("members", [])) > 0 and p["members"][0] == u_name)
+            ]
+            
             new_party = {"id": str(uuid.uuid4()), "time": final_t, "capacity": m_cap, "req_jobs": r_job, "members": [u_name]}
             parties_db[s_cat][g_date].append(new_party)
             
@@ -291,5 +302,7 @@ with t_manage:
                 
             parties_db[s_cat][g_date].sort(key=lambda x: get_h(x.get('time', '')))
             save_json(PARTY_DB_FILE, parties_db)
-            st.success("개설 완료! '실시간 현황'에서 확인하세요.")
+            
+            # 🔔 팝업 알림 메시지 세팅
+            st.session_state["toast_msg"] = f"[{s_cat}] 파티가 성공적으로 개설되었습니다! 🎉"
             st.rerun()
