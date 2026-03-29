@@ -16,9 +16,9 @@ st_autorefresh(interval=10000, key="datarefresh")
 USER_DB_FILE = "users_db.json"
 PARTY_DB_FILE = "parties_db.json"
 
-# 🔥 카테고리 업데이트 완료! (용궁,어금니,해골왕 제거 / 900층,900빽,흉노 추가)
+# 🔥 청명파티 제거 완료!
 CATEGORIES = [
-    "일일숙제(600)", "일일숙제(청명파티)", 
+    "일일숙제(600)", 
     "사냥파티", "사냥파티(900층)", "사냥파티(900빽)", "사냥파티(흉노)",
     "4차팟", "3차팟", "폭염왕"
 ]
@@ -190,10 +190,19 @@ def render_party_card(p, d_list):
     mems = p.get("members", [])
     p_time = p.get("time", "시간 미정")
     req_jobs_str = ", ".join(p.get("req_jobs", [])) if p.get("req_jobs") else "직업 무관"
+    
+    # 🔥 비고란 데이터 가져오기
+    p_remark = p.get("remark", "")
 
     with st.container(border=True):
         st.markdown(f'<div style="font-weight:900; font-size:0.85rem; display:flex; justify-content:space-between; margin-bottom:2px;"><span>⏰ {p_time}</span><span style="color:#e74c3c">{len(mems)}/{cap}</span></div>', unsafe_allow_html=True)
-        st.markdown(f'<div style="font-size:0.7rem; color:#7f8c8d; margin-bottom:8px;">🎯 {req_jobs_str}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-size:0.7rem; color:#7f8c8d; margin-bottom:4px;">🎯 {req_jobs_str}</div>', unsafe_allow_html=True)
+        
+        # 🔥 비고란이 존재하면 카드에 예쁘게 표시
+        if p_remark:
+            st.markdown(f'<div style="font-size:0.7rem; color:#d35400; background-color:#fcf3cf; padding:4px 6px; border-radius:4px; margin-bottom:8px; line-height:1.2;">📝 {p_remark}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div style="margin-bottom:8px;"></div>', unsafe_allow_html=True)
 
         slots = [{"t": "m", "v": m} for m in mems] + [{"t": "e", "v": i} for i in range(max(0, cap - len(mems)))]
         
@@ -262,12 +271,11 @@ with t_manage:
     else:
         st.subheader("📝 새로운 파티 등록")
         
-        # 🔥 '직접 입력' 카테고리 기능 추가
         cat_options = CATEGORIES + ["✍️ 직접 입력 (새로운 파티명)"]
         s_cat_selection = st.selectbox("📌 카테고리", cat_options)
         
         if s_cat_selection == "✍️ 직접 입력 (새로운 파티명)":
-            s_cat = st.text_input("💡 새로운 파티 이름을 적어주세요!", placeholder="예: 번개팟, 흉노 지원 등")
+            s_cat = st.text_input("💡 새로운 파티 이름을 적어주세요!", placeholder="예: 번개팟, 퀘스트 지원 등")
         else:
             s_cat = s_cat_selection
             
@@ -297,6 +305,9 @@ with t_manage:
             e_am_m = t3.selectbox("종료", ["오전", "오후"], index=1)
             e_hr_m = t4.selectbox("시", [f"{i}시" for i in range(1, 13)], index=9)
         
+        # 🔥 방 생성 목적/설명을 적을 수 있는 비고란 추가!
+        p_remark = st.text_input("💬 파티 설명 및 비고 (선택사항)", placeholder="예: 디코 가능자, 빠른 진행, 매너 필수 등")
+
         c1, c2 = st.columns(2)
         m_cap = c1.slider("정원(명)", 2, 12, 4)
         r_job = c2.multiselect("희망 직업 (비우면 무관)", JOB_LIST)
@@ -316,7 +327,15 @@ with t_manage:
                     if not (len(p.get("members", [])) > 0 and p["members"][0] == u_name)
                 ]
                 
-                new_party = {"id": str(uuid.uuid4()), "time": final_t, "capacity": m_cap, "req_jobs": r_job, "members": [u_name]}
+                # 비고(remark) 정보도 같이 저장
+                new_party = {
+                    "id": str(uuid.uuid4()), 
+                    "time": final_t, 
+                    "capacity": m_cap, 
+                    "req_jobs": r_job, 
+                    "members": [u_name],
+                    "remark": p_remark
+                }
                 parties_db[s_cat][g_date].append(new_party)
                 
                 def get_h(ts):
