@@ -28,7 +28,7 @@ if "toast_msg" in st.session_state:
     del st.session_state["toast_msg"]
 
 # ==========================================
-# 🎨 UI 스타일 (절대 2열 강제 고정 마법)
+# 🎨 UI 스타일 (절대 2열 강제 고정)
 # ==========================================
 st.markdown("""
 <style>
@@ -146,7 +146,9 @@ if u_name:
     else: is_logged = True
 
 st.write("---")
-t_home, t_manage = st.tabs(["🏠 실시간 현황", "➕ 파티 만들기 (관리자 전용)"])
+
+# 🔥 탭이 3개로 늘어났습니다! (관리자 탭 추가)
+t_home, t_manage, t_admin = st.tabs(["🏠 실시간 현황", "➕ 파티 만들기", "👑 관리자"])
 
 # ==========================================
 # 🃏 카드 렌더링 함수
@@ -241,83 +243,116 @@ with t_home:
         st.info("아직 개설된 파티가 없습니다.")
 
 # ==========================================
-# ➕ 파티 만들기 탭 (비밀번호 인증 시스템 탑재!)
+# ➕ 파티 만들기 탭 (모든 유저 개설 가능)
 # ==========================================
 with t_manage:
     if not is_logged:
         st.warning("위쪽 입력칸에 닉네임을 먼저 적어주세요!")
     else:
-        # 🔥 관리자 권한 인증 (비밀번호)
-        pwd_input = st.text_input("🔑 파티 개설을 위한 관리자 비밀번호를 입력하세요", type="password")
+        st.subheader("📝 새로운 파티 등록")
         
-        if pwd_input != ADMIN_PASSWORD:
-            if pwd_input: # 뭔가 입력했는데 틀렸을 때
-                st.error("🚨 비밀번호가 틀렸습니다. (일반 문파원은 개설 불가능)")
-            else:
-                st.info("파티 개설은 관리자(문파장)만 가능합니다.")
+        s_cat = st.selectbox("📌 카테고리", CATEGORIES)
+        
+        time_zone = st.radio(
+            "⚡ 시간대 선택 (버튼 클릭)", 
+            ["☀️ 오전 (06~11시)", "🌤️ 오후 (12~23시)", "🌙 심야 (00~05시)", "🛠️ 직접 입력"], 
+            horizontal=True
+        )
+        
+        final_t = ""
+        is_custom = False
+        
+        if time_zone == "☀️ 오전 (06~11시)":
+            opts = [f"오전 {h}시 ~ 오전 {h+1}시" for h in range(6, 11)] + ["오전 11시 ~ 오후 12시"]
+            final_t = st.selectbox("시간 선택", opts)
+        elif time_zone == "🌤️ 오후 (12~23시)":
+            opts = ["오후 12시 ~ 오후 1시"] + [f"오후 {h}시 ~ 오후 {h+1}시" for h in range(1, 11)] + ["오후 11시 ~ 오전 12시"]
+            final_t = st.selectbox("시간 선택", opts)
+        elif time_zone == "🌙 심야 (00~05시)":
+            opts = ["오전 12시 ~ 오전 1시 🌙[심야팟]"] + [f"오전 {h}시 ~ 오전 {h+1}시 🌙[심야팟]" for h in range(1, 5)] + ["오전 5시 ~ 오전 6시 🌙[심야팟]"]
+            final_t = st.selectbox("시간 선택", opts)
         else:
-            st.success("✅ 관리자 인증 완료! 파티를 개설할 수 있습니다.")
-            st.subheader("📝 새로운 파티 등록")
+            is_custom = True
+            t1, t2, t3, t4 = st.columns(4)
+            s_am_m = t1.selectbox("시작", ["오전", "오후"], index=1)
+            s_hr_m = t2.selectbox("시", [f"{i}시" for i in range(1, 13)], index=7)
+            e_am_m = t3.selectbox("종료", ["오전", "오후"], index=1)
+            e_hr_m = t4.selectbox("시", [f"{i}시" for i in range(1, 13)], index=9)
+        
+        c1, c2 = st.columns(2)
+        m_cap = c1.slider("정원(명)", 2, 12, 4)
+        r_job = c2.multiselect("희망 직업 (비우면 무관)", JOB_LIST)
+        
+        if st.button("🚀 파티 개설하기", use_container_width=True, type="primary"):
+            if is_custom: final_t = f"{s_am_m} {s_hr_m} ~ {e_am_m} {e_hr_m}"
             
-            s_cat = st.selectbox("📌 카테고리", CATEGORIES)
+            if s_cat not in parties_db: parties_db[s_cat] = {}
+            if g_date not in parties_db[s_cat]: parties_db[s_cat][g_date] = []
             
-            time_zone = st.radio(
-                "⚡ 시간대 선택 (버튼 클릭)", 
-                ["☀️ 오전 (06~11시)", "🌤️ 오후 (12~23시)", "🌙 심야 (00~05시)", "🛠️ 직접 입력"], 
-                horizontal=True
-            )
+            # 🔥 본인이 만든 중복 방 자동 삭제 유지
+            parties_db[s_cat][g_date] = [
+                p for p in parties_db[s_cat][g_date] 
+                if not (len(p.get("members", [])) > 0 and p["members"][0] == u_name)
+            ]
             
-            final_t = ""
-            is_custom = False
+            new_party = {"id": str(uuid.uuid4()), "time": final_t, "capacity": m_cap, "req_jobs": r_job, "members": [u_name]}
+            parties_db[s_cat][g_date].append(new_party)
             
-            if time_zone == "☀️ 오전 (06~11시)":
-                opts = [f"오전 {h}시 ~ 오전 {h+1}시" for h in range(6, 11)] + ["오전 11시 ~ 오후 12시"]
-                final_t = st.selectbox("시간 선택", opts)
-            elif time_zone == "🌤️ 오후 (12~23시)":
-                opts = ["오후 12시 ~ 오후 1시"] + [f"오후 {h}시 ~ 오후 {h+1}시" for h in range(1, 11)] + ["오후 11시 ~ 오전 12시"]
-                final_t = st.selectbox("시간 선택", opts)
-            elif time_zone == "🌙 심야 (00~05시)":
-                opts = ["오전 12시 ~ 오전 1시 🌙[심야팟]"] + [f"오전 {h}시 ~ 오전 {h+1}시 🌙[심야팟]" for h in range(1, 5)] + ["오전 5시 ~ 오전 6시 🌙[심야팟]"]
-                final_t = st.selectbox("시간 선택", opts)
-            else:
-                is_custom = True
-                t1, t2, t3, t4 = st.columns(4)
-                s_am_m = t1.selectbox("시작", ["오전", "오후"], index=1)
-                s_hr_m = t2.selectbox("시", [f"{i}시" for i in range(1, 13)], index=7)
-                e_am_m = t3.selectbox("종료", ["오전", "오후"], index=1)
-                e_hr_m = t4.selectbox("시", [f"{i}시" for i in range(1, 13)], index=9)
-            
-            c1, c2 = st.columns(2)
-            m_cap = c1.slider("정원(명)", 2, 12, 4)
-            r_job = c2.multiselect("희망 직업 (비우면 무관)", JOB_LIST)
-            
-            if st.button("🚀 파티 개설하기", use_container_width=True, type="primary"):
-                if is_custom: final_t = f"{s_am_m} {s_hr_m} ~ {e_am_m} {e_hr_m}"
+            def get_h(ts):
+                try:
+                    start_str = ts.split("~")[0].strip()
+                    ampm, h_str = start_str.split(" ")
+                    hour = int(h_str.replace("시", ""))
+                    if ampm == "오후" and hour != 12: hour += 12
+                    elif ampm == "오전" and hour == 12: hour = 0
+                    return hour
+                except: return 0
                 
-                if s_cat not in parties_db: parties_db[s_cat] = {}
-                if g_date not in parties_db[s_cat]: parties_db[s_cat][g_date] = []
-                
-                # 🔥 중복 생성 방지 
-                parties_db[s_cat][g_date] = [
-                    p for p in parties_db[s_cat][g_date] 
-                    if not (len(p.get("members", [])) > 0 and p["members"][0] == u_name)
-                ]
-                
-                new_party = {"id": str(uuid.uuid4()), "time": final_t, "capacity": m_cap, "req_jobs": r_job, "members": [u_name]}
-                parties_db[s_cat][g_date].append(new_party)
-                
-                def get_h(ts):
-                    try:
-                        start_str = ts.split("~")[0].strip()
-                        ampm, h_str = start_str.split(" ")
-                        hour = int(h_str.replace("시", ""))
-                        if ampm == "오후" and hour != 12: hour += 12
-                        elif ampm == "오전" and hour == 12: hour = 0
-                        return hour
-                    except: return 0
+            parties_db[s_cat][g_date].sort(key=lambda x: get_h(x.get('time', '')))
+            save_json(PARTY_DB_FILE, parties_db)
+            
+            st.session_state["toast_msg"] = f"[{s_cat}] 파티가 성공적으로 개설되었습니다! 🎉"
+            st.rerun()
+
+# ==========================================
+# 👑 관리자 탭 (형님만 몰래 쓰는 기능)
+# ==========================================
+with t_admin:
+    st.subheader("👑 관리자 전용 제어판")
+    pwd_input = st.text_input("🔑 관리자 암호를 입력하세요", type="password")
+    
+    if pwd_input == ADMIN_PASSWORD:
+        st.success("✅ 관리자 권한이 활성화되었습니다.")
+        st.markdown("### 🗑️ 악성/도배 파티 강제 삭제")
+        st.caption(f"기준 날짜: {g_date}")
+        
+        has_rooms_to_del = False
+        for cat in CATEGORIES:
+            d_list = parties_db.get(cat, {}).get(g_date, [])
+            if d_list:
+                has_rooms_to_del = True
+                st.write(f"**📌 {cat}**")
+                for p in d_list:
+                    p_id = p.get("id")
+                    p_time = p.get("time", "시간 미정")
+                    host = p["members"][0] if p.get("members") else "알수없음"
                     
-                parties_db[s_cat][g_date].sort(key=lambda x: get_h(x.get('time', '')))
-                save_json(PARTY_DB_FILE, parties_db)
+                    c1, c2 = st.columns([4, 1])
+                    with c1:
+                        st.write(f"⏰ {p_time} | 방장: [{host}]")
+                    with c2:
+                        # 관리자가 폭파 버튼을 누르면 즉시 삭제
+                        if st.button("💣 폭파", key=f"adm_del_{p_id}", type="primary"):
+                            d_list.remove(p)
+                            save_json(PARTY_DB_FILE, parties_db)
+                            st.session_state["toast_msg"] = f"방장 [{host}]의 파티를 강제 삭제했습니다!"
+                            st.rerun()
+                st.write("---")
                 
-                st.session_state["toast_msg"] = f"[{s_cat}] 파티가 성공적으로 개설되었습니다! 🎉"
-                st.rerun()
+        if not has_rooms_to_del:
+            st.info("현재 개설된 파티가 없습니다.")
+    else:
+        if pwd_input:
+            st.error("🚨 비밀번호가 틀렸습니다.")
+        else:
+            st.info("이곳은 문파장 전용 공간입니다.")
